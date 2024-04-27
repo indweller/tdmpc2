@@ -2,13 +2,20 @@ defaults:
     - override hydra/launcher: submitit_local
 
 # environment
-task: dog-run
+task: parkour-base
 obs: state
+exp_conf_path: /home/learning/prashanth/tdmpc2/tdmpc2/dtsd/confs/default.yaml
+policy_path: /home/learning/prashanth/tdmpc2/tdmpc2/dtsd/policy/0/actor.pt
+forward_reward_weight: 1.0
+oracle_freq: 1
+policy_freq: 30
+a_ID: [0.05, 0.60]
+d_ID: 0.71
 
 # evaluation
 checkpoint: ???
 eval_episodes: 10
-eval_freq: 50000
+eval_freq: 5000
 
 # training
 steps: 10_000_000

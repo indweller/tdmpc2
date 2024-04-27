@@ -26,6 +26,7 @@ try:
 	from envs.myosuite import make_env as make_myosuite_env
 except:
 	make_myosuite_env = missing_dependencies
+from envs.parkour import make_env as make_parkour_env
 
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
@@ -62,7 +63,7 @@ def make_env(cfg):
 
 	else:
 		env = None
-		for fn in [make_dm_control_env, make_maniskill_env, make_metaworld_env, make_myosuite_env]:
+		for fn in [make_dm_control_env, make_maniskill_env, make_metaworld_env, make_myosuite_env, make_parkour_env]:
 			try:
 				env = fn(cfg)
 			except ValueError:
