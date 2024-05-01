@@ -15,7 +15,7 @@ import datetime
 import torch
 import yaml
 import os
-import gym
+import gymnasium as gym
 import sys
 import nn as nn
 sys.path.append('./')
@@ -34,7 +34,7 @@ class ParkourEnv(gym.Env):
         self.oracle_freq = cfg['oracle_freq'] # Env freq in real time, 1 Hz
         self.policy_freq = cfg['policy_freq']
         self.sim = mujoco_sim( **self.exp_conf['sim_params'])
-        self.sim.init_renderers()
+        # self.sim.init_renderers()
         if not isinstance(self.exp_conf['p_gain'],list):
             self.exp_conf['p_gain'] = [self.exp_conf['p_gain']]*10
         if not isinstance(self.exp_conf['d_gain'],list):
@@ -55,10 +55,9 @@ class ParkourEnv(gym.Env):
         self.action_space = gym.spaces.Box(
 			low=np.array([-1, -1]), high=np.array([1, 1]),
 		)
-        
         self.xlen = self.exp_conf['observations']['terrain_xlen_infront']
         self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=self.get_high_level_obs(np.zeros(2)).shape,
+            low=-np.inf, high=np.inf, shape=self.get_high_level_obs(np.zeros(2)).shape, dtype=np.float64
         )
         self.forward_reward_weight = self.cfg.forward_reward_weight
         self.max_episode_steps = 50
@@ -93,15 +92,16 @@ class ParkourEnv(gym.Env):
                 self.sim.set_control(torques)
                 self.sim.simulate_n_steps(n_steps=1)
         current_pose = self.sim.data.qpos[:3].copy()
-        reward = self.compute_reward(prev_pose, current_pose)
+        reward = self.get_reward(prev_pose, current_pose)
         done = False
-        if self.sim.data.qpos[2] < 0.3:
+        terrain_height = self.sim.get_terrain_height_at(current_pose)
+        if self.sim.data.qpos[2] < 0.3 or self.sim.data.qpos[2] - terrain_height < 0.3:
             done = True
         if self.current_step >= self.max_episode_steps:
             done = True
         return self.get_high_level_obs(action), reward, done, {}
     
-    def compute_reward(self, prev_pose, current_pose):
+    def get_reward(self, prev_pose, current_pose):
         # reward = self.forward_reward_weight * (current_pose[2] - NOMINAL_HEIGHT)
         # reward = self.forward_reward_weight * (current_pose[0] - prev_pose[0]) / (self.phaselen * self.sim.dt * self.sim_freq / self.policy_freq)
         reward = self.forward_reward_weight * -1 * np.abs(current_pose[0] - 10)
@@ -154,7 +154,7 @@ class ParkourEnv(gym.Env):
         # set joint to nominal configuration
         jpn = np.array(self.model_prop[self.exp_conf['robot']]['jpos_nominal']) 
         error_norm = np.inf    
-        while error_norm > 1e-1:
+        while error_norm > 2e-1:
             error_norm = 0
             for i,(jci,jpi,jvi) in enumerate(
                                                     zip(
@@ -189,9 +189,9 @@ class ParkourEnv(gym.Env):
         self.sim.simulate_n_steps(1)
     
     def render(self, mode='rgb_array', width=384, height=384, camera_id=0):
-        # return np.zeros((width, height, 3), dtype=np.uint8)
+        return np.zeros((width, height, 3), dtype=np.uint8)
         # return self.sim.render(mode, width, height, camera_id)
-        return self.sim.get_frame_from_renderer()
+        # return self.sim.get_frame_from_renderer()
 
     def generate_task_variant(self):
 

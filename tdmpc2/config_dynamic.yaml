@@ -2,9 +2,9 @@ defaults:
     - override hydra/launcher: submitit_local
 
 # environment
-task: parkour-base
+task: parkour-dynamic
 obs: state
-exp_conf_path: /home/learning/prashanth/tdmpc2/tdmpc2/dtsd/confs/default.yaml
+exp_conf_path: /home/learning/prashanth/tdmpc2/tdmpc2/dtsd/confs/dynamic.yaml
 policy_path: /home/learning/prashanth/tdmpc2/tdmpc2/dtsd/policy/0/actor.pt
 forward_reward_weight: 1.0
 oracle_freq: 1

@@ -74,15 +74,19 @@ def evaluate(cfg: dict):
 		ep_rewards, ep_successes = [], []
 		for i in range(cfg.eval_episodes):
 			obs, done, ep_reward, t = env.reset(task_idx=task_idx), False, 0, 0
+			env.sim.viewer_paused = True
+			env.sim.viewer.update_hfield(0)
 			if cfg.save_video:
 				frames = [env.render()]
 			while not done:
-				action = agent.act(obs, t0=t==0, task=task_idx)
-				obs, reward, done, info = env.step(action)
-				ep_reward += reward
-				t += 1
-				if cfg.save_video:
-					frames.append(env.render())
+				if not env.sim.viewer_paused:
+					env.sim.viewer.sync()
+					action = agent.act(obs, t0=t==0, task=task_idx)
+					obs, reward, done, info = env.step(action)
+					ep_reward += reward
+					t += 1
+					if cfg.save_video:
+						frames.append(env.render())
 			ep_rewards.append(ep_reward)
 			ep_successes.append(info['success'])
 			if cfg.save_video:
