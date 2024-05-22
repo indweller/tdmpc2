@@ -89,6 +89,7 @@ def eval_ppo(cfg: dict):
     from functools import partial
     env_fn = partial(make_env, cfg)
     vec_env = env_fn()
+    model = PPO.load('/home/learning/prashanth/tmp/sb3/hp/50_64_32/best_model.zip')
     render = vec_env.render_viewer
     if render:
         vec_env.sim.viewer.cam.lookat = [4.05, -1.5, 0]
@@ -176,5 +177,5 @@ def hyper_param_search(cfg: dict):
 
 if __name__ == '__main__':
     # train_ppo()
-    # eval_ppo()
-    hyper_param_search()
+    eval_ppo()
+    # hyper_param_search()
