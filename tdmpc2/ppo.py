@@ -89,40 +89,41 @@ def eval_ppo(cfg: dict):
     from functools import partial
     env_fn = partial(make_env, cfg)
     vec_env = env_fn()
-    model = PPO.load('/home/learning/prashanth/tdmpc2/tdmpc2/sb3/best_model.zip')
-    vec_env.sim.viewer.cam.lookat = [4.05, -1.5, 0]
-    vec_env.sim.viewer.cam.distance = 2.5
-    vec_env.sim.viewer.cam.elevation = -20
-    vec_env.sim.viewer.cam.azimuth = 135
+    render = vec_env.render_viewer
+    if render:
+        vec_env.sim.viewer.cam.lookat = [4.05, -1.5, 0]
+        vec_env.sim.viewer.cam.distance = 2.5
+        vec_env.sim.viewer.cam.elevation = -20
+        vec_env.sim.viewer.cam.azimuth = 135
     all_returns = []
     all_episode_lengths = []
     all_final_x = []
     for _ in range(20):
         obs, _ = vec_env.reset()
         done = False
-        vec_env.sim.viewer_paused = True
-        vec_env.sim.viewer.update_hfield(0)
+        if render:
+            vec_env.sim.viewer_paused = True
+            vec_env.sim.viewer.update_hfield(0)
         returns = 0
         steps = 0
         while not done:
-            if not vec_env.sim.viewer_paused:
+            if render and not vec_env.sim.viewer_paused:
                 vec_env.sim.viewer.sync()
-                # print(model.predict(obs))
-                action, _states = model.predict(obs)
-                # action = np.random.normal(0, 0.05, 2).clip(-1, 1)
-            #action = np.random.uniform(-1, 1, 2)
-                obs, rewards, done, _, info = vec_env.step(action)
-                returns += rewards
-                steps += 1
-        
-        print(f'Episode finished after {steps} steps with return {returns}. Final x = {vec_env.sim.data.qpos[0]}')
+            # print(model.predict(obs))
+            action, _states = model.predict(obs)
+            # action = np.random.normal(0, 0.05, 2).clip(-1, 1)
+        #action = np.random.uniform(-1, 1, 2)
+            obs, rewards, done, _, info = vec_env.step(action)
+            returns += rewards
+            steps += 1
+        print(f'Episode finished after {steps} steps with return {returns:.2f}. Final x = {vec_env.sim.data.qpos[0]:.2f}')
         all_returns.append(returns)
         all_episode_lengths.append(steps)
         all_final_x.append(vec_env.sim.data.qpos[0])
     vec_env.close()
-    print(f'Mean return: {np.mean(all_returns)} +/- {np.std(all_returns)}')
-    print(f'Mean episode length: {np.mean(all_episode_lengths)} +/- {np.std(all_episode_lengths)}')
-    print(f'Mean final x: {np.mean(all_final_x)} +/- {np.std(all_final_x)}')
+    print(f'Mean return: {np.mean(all_returns):.2f} +/- {np.std(all_returns):.2f}')
+    print(f'Mean episode length: {np.mean(all_episode_lengths):.2f} +/- {np.std(all_episode_lengths):.2f}')
+    print(f'Mean final x: {np.mean(all_final_x):.2f} +/- {np.std(all_final_x):.2f}')
 
 @hydra.main(version_base=None, config_name='config_dynamic', config_path='/home/learning/prashanth/tdmpc2/tdmpc2/')
 def hyper_param_search(cfg: dict):
@@ -149,12 +150,12 @@ def hyper_param_search(cfg: dict):
                     activation_fn =nn.Tanh,
                     net_arch =dict(pi =[128, 128], vf =[128, 128])
                     )
-    n_envs = [16, 24, 30]
-    batch_sizes = [32, 64, 128, 256, 512]
-    n_steps = [256, 512, 1024, 2048]
-    # n_envs = [15, 25]
-    # batch_sizes = [64, 128]
-    # n_steps = [20, 40]
+    # n_envs = [16, 24, 30]
+    # batch_sizes = [32, 64, 128, 256, 512]
+    # n_steps = [256, 512, 1024, 2048]
+    n_envs = [50]
+    batch_sizes = [64]
+    n_steps = [32, 128, 512, 2048]
     for n_env in n_envs:
         for batch_size in batch_sizes:
             for n_step in n_steps:
