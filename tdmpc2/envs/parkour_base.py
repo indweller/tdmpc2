@@ -20,7 +20,6 @@ import sys
 import nn as nn
 sys.path.append('./')
 
-EXP_DIR_PATH = os.path.dirname(__file__).replace('dtsd/envs/sim', '')
 NOMINAL_HEIGHT = 0.3
 
 

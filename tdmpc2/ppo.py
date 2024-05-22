@@ -14,6 +14,8 @@ import hydra
 # ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
+import os
+PROJECT_PATH = os.path.dirname(__file__)
 
 class PPOParkourEnv(ParkourEnv):
     def __init__(self, cfg, exp_conf_path):
@@ -44,7 +46,7 @@ class PPOParkourDynamicEnv(ParkourDynamic):
     def get_reward(self, prev_pose, current_pose):
         return self.forward_reward_weight * np.exp(-0.15 * np.abs(current_pose[0] - 10))
 
-@hydra.main(version_base=None, config_name='config', config_path='/home/learning/prashanth/tdmpc2/tdmpc2/')
+@hydra.main(version_base=None, config_name='config', config_path=PROJECT_PATH)
 def train_ppo(cfg: dict):
     cfg = parse_cfg(cfg)
     def make_env(cfg):
@@ -72,15 +74,15 @@ def train_ppo(cfg: dict):
                     activation_fn =nn.Tanh,
                     net_arch =dict(pi =[128, 128], vf =[128, 128])
                     )
-    model = PPO('MlpPolicy', vec_env, tensorboard_log='/home/learning/prashanth/tdmpc2/tdmpc2/sb3/logs/', verbose=0, **ppo_args)
+    model = PPO('MlpPolicy', vec_env, tensorboard_log='sb3/logs/', verbose=0, **ppo_args)
 
-    eval_callback = EvalCallback(eval_env, best_model_save_path='/home/learning/prashanth/tdmpc2/tdmpc2/sb3/tmp', log_path='/home/learning/prashanth/tdmpc2/tdmpc2/sb3/tmp', eval_freq=2049, deterministic=True)
+    eval_callback = EvalCallback(eval_env, best_model_save_path='sb3/tmp', log_path='sb3/tmp', eval_freq=2049, deterministic=True)
     
     model.learn(total_timesteps=cfg.steps, progress_bar=True, callback=eval_callback)
     
-    model.save('/home/learning/prashanth/tdmpc2/tdmpc2/sb3/finaltmp')
+    model.save('sb3/finaltmp')
 
-@hydra.main(version_base=None, config_name='config_dynamic', config_path='/home/learning/prashanth/tdmpc2/tdmpc2/')
+@hydra.main(version_base=None, config_name='config_dynamic', config_path=PROJECT_PATH)
 def eval_ppo(cfg: dict):
     cfg = parse_cfg(cfg)
     def make_env(cfg):
@@ -89,7 +91,7 @@ def eval_ppo(cfg: dict):
     from functools import partial
     env_fn = partial(make_env, cfg)
     vec_env = env_fn()
-    model = PPO.load('/home/learning/prashanth/tmp/sb3/hp/50_64_32/best_model.zip')
+    model = PPO.load('sb3/hp/50_64_32/best_model.zip')
     render = vec_env.render_viewer
     if render:
         vec_env.sim.viewer.cam.lookat = [4.05, -1.5, 0]
@@ -126,7 +128,7 @@ def eval_ppo(cfg: dict):
     print(f'Mean episode length: {np.mean(all_episode_lengths):.2f} +/- {np.std(all_episode_lengths):.2f}')
     print(f'Mean final x: {np.mean(all_final_x):.2f} +/- {np.std(all_final_x):.2f}')
 
-@hydra.main(version_base=None, config_name='config_dynamic', config_path='/home/learning/prashanth/tdmpc2/tdmpc2/')
+@hydra.main(version_base=None, config_name='config_dynamic', config_path=PROJECT_PATH)
 def hyper_param_search(cfg: dict):
     cfg = parse_cfg(cfg)
     cfg.steps = 122_880
@@ -166,13 +168,13 @@ def hyper_param_search(cfg: dict):
                 ppo_args["n_steps"] = n_step
                 vec_env = make_vec_env(env_fn, n_envs=n_env, vec_env_cls=SubprocVecEnv)
                 eval_env = make_vec_env(env_fn, n_envs=1, vec_env_cls=SubprocVecEnv)
-                model = PPO('MlpPolicy', vec_env, tensorboard_log=f'/home/learning/prashanth/tdmpc2/tdmpc2/sb3/hp/{n_env}_{batch_size}_{n_step}', verbose=0, **ppo_args)
+                model = PPO('MlpPolicy', vec_env, tensorboard_log=f'sb3/hp/{n_env}_{batch_size}_{n_step}', verbose=0, **ppo_args)
 
-                eval_callback = EvalCallback(eval_env, best_model_save_path='/home/learning/prashanth/tdmpc2/tdmpc2/sb3/hp', log_path='/home/learning/prashanth/tdmpc2/tdmpc2/sb3/hp', eval_freq=n_step+1, deterministic=True)
+                eval_callback = EvalCallback(eval_env, best_model_save_path='sb3/hp', log_path='sb3/hp', eval_freq=n_step+1, deterministic=True)
                 
                 model.learn(total_timesteps=cfg.steps, progress_bar=True, callback=eval_callback)
                 
-                model.save('/home/learning/prashanth/tdmpc2/tdmpc2/sb3/hp/final')
+                model.save('sb3/hp/final')
                 print("-------------------")
 
 if __name__ == '__main__':
