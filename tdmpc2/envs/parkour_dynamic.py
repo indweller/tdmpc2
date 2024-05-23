@@ -53,153 +53,94 @@ class ParkourDynamic(ParkourEnv):
     def get_high_level_obs(self, mode_latent):
         high_level_obs = super().get_high_level_obs(mode_latent)
         base_pos = self.get_robot_base_pos()
-        # for k in self.obstacle_locs.keys():
-        #     if base_pos[0] >= self.obstacle_locs[k][0] and base_pos[0] <= self.obstacle_locs[k][1]:
-        #         next_oh = np.array([-1, -1])
-        #         for k2 in self.obstacle_locs.keys():
-        #             if k2 != k and abs(self.obstacle_locs[k2][0] - self.obstacle_locs[k][1] - self.gap) < 1e-3:
-        #                 next_oh = self.obstacle_oh[k2]
-        #                 break
-        #         high_level_obs = np.concatenate((high_level_obs, self.obstacle_oh[k], next_oh))
-        #         return high_level_obs
-        for k in self.obstacle_locs.keys():
-            for k_i in self.obstacle_locs[k]:
-                if base_pos[0] >= k_i[0] and base_pos[0] <= k_i[1]:
-                    next_oh = np.array([-1, -1])
-                    for k2 in self.obstacle_locs.keys():
-                        for k2_i in self.obstacle_locs[k2]:
-                            if k2_i != k_i and abs(k2_i[0] - k_i[1] - self.gap) < 1e-3:
-                                next_oh = self.obstacle_oh[k2]
-                                break
-                    high_level_obs = np.concatenate((high_level_obs, self.obstacle_oh[k], next_oh))
+
+        for obstacle_key, obstacle_locs in self.obstacle_locs.items():
+            for obstacle_loc in obstacle_locs:
+                if obstacle_loc[0] <= base_pos[0] <= obstacle_loc[1]:
+                    next_oh = self.get_next_obstacle_oh(obstacle_key, obstacle_loc)
+                    high_level_obs = np.concatenate((high_level_obs, self.obstacle_oh[obstacle_key], next_oh))
                     return high_level_obs
         high_level_obs = np.concatenate((high_level_obs, np.array([-1, -1]), np.array([-1, -1])))
         return high_level_obs
 
-    # def get_high_level_obs(self, mode_latent):
-    #     high_level_obs = super().get_high_level_obs(mode_latent)
-    #     base_pos = self.get_robot_base_pos()
-    #     # Check if base_pos is within the location range of any obstacle
-    #     in_range = np.logical_and(base_pos[0] >= self.obstacle_locs[:, 0], base_pos[0] <= self.obstacle_locs[:, 1])
-    #     if np.any(in_range):
-    #         # Find the indices of the current and next obstacles
-    #         current_obstacle_index = np.argmax(in_range)
-    #         # Concatenate the one-hot encodings of the current and next obstacles to the high-level observation
-    #         high_level_obs = np.concatenate((high_level_obs, self.obstacle_oh[current_obstacle_index], self.obstacle_oh[current_obstacle_index + 1]))
-    #     else:
-    #         # Concatenate two [-1, -1] arrays to the high-level observation
-    #         high_level_obs = np.concatenate((high_level_obs, np.array([-1, -1]), np.array([-1, -1])))
-    #     return high_level_obs
-
-    # def set_obstacles(self):
-    #     # Get the x-coordinates of the obstacles
-    #     x_coords = self.sim.data.qpos[self.obstacle_indices[:, 0]].copy()
-    #     x_coords += -0.5 * np.arange(1, len(self.obstacle_indices) + 1)
-    #     x_coords += self.gap * np.arange(1, len(self.obstacle_indices) + 1)
-    #     # Shuffle the x-coordinates
-    #     np.random.shuffle(x_coords)
-    #     # Set the new x-coordinates of the obstacles
-    #     self.sim.data.qpos[self.obstacle_indices[:, 0]] = x_coords
-    #     # Update the obstacle locations
-    #     self.obstacle_locs[:, 0] = x_coords - 0.75
-    #     self.obstacle_locs[:, 1] = x_coords + 0.75  
-
-    # def set_obstacles_new(self):
-    #     # Get the x-coordinates of the obstacles
-    #     x_coords = self.sim.data.qpos[self.obstacle_indices[:, 0]].copy()
-    #     # Store the original first three locations
-    #     original_first_three = x_coords[:3].copy()
-    #     # Set the first obstacle to -200
-    #     x_coords[0] = -200
-    #     # Shuffle the original first three locations and assign them to the last three obstacles
-    #     np.random.shuffle(original_first_three)
-    #     x_coords[1:4] = original_first_three
-    #     # Set the new positions
-    #     self.sim.data.qpos[self.obstacle_indices[:, 0]] = x_coords
-    #     # Update the obstacle locations
-    #     self.obstacle_locs[:, 0] = x_coords - 0.75
-    #     self.obstacle_locs[:, 1] = x_coords + 0.75
+    def get_next_obstacle_oh(self, current_obstacle_key, current_obstacle_loc):
+        for obstacle_key, obstacle_locs in self.obstacle_locs.items():
+            for obstacle_loc in obstacle_locs:
+                if obstacle_loc != current_obstacle_loc and abs(obstacle_loc[0] - current_obstacle_loc[1] - self.gap) < 1e-3:
+                    return self.obstacle_oh[obstacle_key]
+        return np.array([-1, -1])
 
     def set_obstacles(self):
-        rotating_disc =  np.take(self.sim.data.qpos, [24, 25, 26])
-        moving_cart = np.take(self.sim.data.qpos, [32, 33, 34])
-        stewart_platform = np.take(self.sim.data.qpos, [43, 44, 45])
-        stairs = np.take(self.sim.data.qpos, [54, 55, 56])
-        # rotating_disc, moving_cart, stewart_platform, stairs = obs.obstacle_state(self)
-        x_coords = np.array([rotating_disc[0], moving_cart[0], stewart_platform[0], stairs[0]])
+        obstacle_indices = [[24, 25, 26], [32, 33, 34], [43, 44, 45], [54, 55, 56]]
+        obstacle_keys = ['rotating_disc', 'moving_cart', 'stewart_platform', 'stairs']
+        obstacle_locs = {}
+
+        x_coords = np.array([np.take(self.sim.data.qpos, indices)[0] for indices in obstacle_indices])
         x_coords += -0.5 * (np.arange(4) + 1)
         x_coords += self.gap * (np.arange(4) + 1)
-        # Shuffle the x_coords
         np.random.shuffle(x_coords)
-        # Set the new positions
-        rotating_disc[0] = x_coords[0]
-        moving_cart[0] = x_coords[1]
-        stewart_platform[0] = x_coords[2]
-        stairs[0] = x_coords[3]
-        # Set the new positions
-        np.put(self.sim.data.qpos, [24, 25, 26], rotating_disc)
-        np.put(self.sim.data.qpos, [32, 33, 34], moving_cart)
-        np.put(self.sim.data.qpos, [43, 44, 45], stewart_platform)
-        np.put(self.sim.data.qpos, [54, 55, 56], stairs)
-        self.obstacle_locs = {'rotating_disc': [rotating_disc[0] - 0.75, rotating_disc[0] + 0.75], 'moving_cart': [moving_cart[0] - 0.75, moving_cart[0] + 0.75], 'stewart_platform': [stewart_platform[0] - 0.75, stewart_platform[0] + 0.75], 'stairs': [stairs[0] - 0.75, stairs[0] + 0.75]}
+
+        for i, (indices, key) in enumerate(zip(obstacle_indices, obstacle_keys)):
+            obstacle = np.take(self.sim.data.qpos, indices)
+            obstacle[0] = x_coords[i]
+            np.put(self.sim.data.qpos, indices, obstacle)
+            obstacle_locs[key] = [[x_coords[i] - 0.75, x_coords[i] + 0.75]]
+
+        self.obstacle_locs = obstacle_locs
     
     def set_obstacles_new(self):
-        rotating_disc =  np.take(self.sim.data.qpos, [24, 25, 26])
-        moving_cart = np.take(self.sim.data.qpos, [32, 33, 34])
-        stewart_platform = np.take(self.sim.data.qpos, [43, 44, 45])
-        stairs = np.take(self.sim.data.qpos, [54, 55, 56])
-        # rotating_disc, moving_cart, stewart_platform, stairs = obs.obstacle_state(self)
-        stairs[0] = stewart_platform[0]
-        stewart_platform[0] = moving_cart[0]
-        moving_cart[0] = rotating_disc[0]
-        rotating_disc[0] = 7.25
-        x_coords = np.array([moving_cart[0], stewart_platform[0], stairs[0]])
-        # x_coords -= 1.5
+        obstacle_indices = [[24, 25, 26], [32, 33, 34], [43, 44, 45], [54, 55, 56]]
+        obstacle_keys = ['rotating_disc', 'moving_cart', 'stewart_platform', 'stairs']
+        obstacle_locs = {}
+
+        obstacles = [np.take(self.sim.data.qpos, indices) for indices in obstacle_indices]
+
+        x_coords = np.array([obstacles[i][0] for i in range(0, 3)])
         x_coords += -0.5 * (np.arange(3) + 1)
         x_coords += self.gap * (np.arange(3) + 1)
-        # Shuffle the x_coords
         np.random.shuffle(x_coords)
-        # Set the new positions
-        rotating_disc[0] = -200
-        moving_cart[0] = x_coords[0]
-        stewart_platform[0] = x_coords[1]
-        stairs[0] = x_coords[2]
-        # Set the new positions
-        np.put(self.sim.data.qpos, [24, 25, 26], rotating_disc)
-        np.put(self.sim.data.qpos, [32, 33, 34], moving_cart)
-        np.put(self.sim.data.qpos, [43, 44, 45], stewart_platform)
-        np.put(self.sim.data.qpos, [54, 55, 56], stairs)
-        self.obstacle_locs = {'rotating_disc': [rotating_disc[0] - 0.75, rotating_disc[0] + 0.75], 'moving_cart': [moving_cart[0] - 0.75, moving_cart[0] + 0.75], 'stewart_platform': [stewart_platform[0] - 0.75, stewart_platform[0] + 0.75], 'stairs': [stairs[0] - 0.75, stairs[0] + 0.75]}
+        for i in range(3):
+            obstacles[i+1][0] = x_coords[i]
+
+        obstacles[0][0] = -200
+
+        for indices, obstacle, key in zip(obstacle_indices, obstacles, obstacle_keys):
+            np.put(self.sim.data.qpos, indices, obstacle)
+            obstacle_locs[key] = [[obstacle[0] - 0.75, obstacle[0] + 0.75]]
+
+        self.obstacle_locs = obstacle_locs
 
     def set_obstacles_extended(self):
-        rotating_disc =  np.take(self.sim.data.qpos, [24, 25, 26])
-        moving_cart = [np.take(self.sim.data.qpos, [32, 33, 34]), 
-                       np.take(self.sim.data.qpos, [61, 62, 63]), 
-                       np.take(self.sim.data.qpos, [90, 91, 92])]
-        stewart_platform = [np.take(self.sim.data.qpos, [43, 44, 45]),
-                            np.take(self.sim.data.qpos, [72, 73, 74]),
-                            np.take(self.sim.data.qpos, [101, 102, 103])]
-        stairs = [np.take(self.sim.data.qpos, [54, 55, 56]),
-                  np.take(self.sim.data.qpos, [83, 84, 85]),
-                  np.take(self.sim.data.qpos, [112, 113, 114])]
-        
+        obstacle_indices = [[32, 33, 34], [43, 44, 45], [54, 55, 56], 
+                            [61, 62, 63], [72, 73, 74], [83, 84, 85], 
+                            [90, 91, 92], [101, 102, 103], [112, 113, 114]]
+        obstacle_keys = ['moving_cart', 'stewart_platform', 'stairs',
+                         'moving_cart', 'stewart_platform', 'stairs',
+                         'moving_cart', 'stewart_platform', 'stairs']
+        obstacle_locs = {'rotating_disc': [[-200 - 0.75, -200 + 0.75]]}
+
+        # Get current positions
+        obstacles = [np.take(self.sim.data.qpos, indices) for indices in obstacle_indices]
+
+        # Set rotating disc
+        rotating_disc = np.take(self.sim.data.qpos, [24, 25, 26])
         rotating_disc[0] = -200
         np.put(self.sim.data.qpos, [24, 25, 26], rotating_disc)
-        for i in range(3):
-            moving_cart[i][0] -= 2.0
-            stewart_platform[i][0] -= 2.0
-            stairs[i][0] -= 2.0
 
-        for i in range(3):
-            x_coords = np.array([moving_cart[i][0], stewart_platform[i][0], stairs[i][0]])
-            x_coords += -0.5 * (np.arange(i*3, (i+1)*3) + 1)
-            x_coords += self.gap * (np.arange(i*3, (i+1)*3) + 1)
-            np.random.shuffle(x_coords)
-            moving_cart[i][0] = x_coords[0]
-            stewart_platform[i][0] = x_coords[1]
-            stairs[i][0] = x_coords[2]
-            np.put(self.sim.data.qpos, [32 + 29 * i, 33 + 29 * i, 34 + 29 * i], moving_cart[i])
-            np.put(self.sim.data.qpos, [43 + 29 * i, 44 + 29 * i, 45 + 29 * i], stewart_platform[i])
-            np.put(self.sim.data.qpos, [54 + 29 * i, 55 + 29 * i, 56 + 29 * i], stairs[i])
-        self.obstacle_locs = {'rotating_disc': [[rotating_disc[0] - 0.75, rotating_disc[0] + 0.75]], 'moving_cart': [[moving_cart[0][0] - 0.75, moving_cart[0][0] + 0.75], [moving_cart[1][0] - 0.75, moving_cart[1][0] + 0.75], [moving_cart[2][0] - 0.75, moving_cart[2][0] + 0.75]], 'stewart_platform': [[stewart_platform[0][0] - 0.75, stewart_platform[0][0] + 0.75], [stewart_platform[1][0] - 0.75, stewart_platform[1][0] + 0.75], [stewart_platform[2][0] - 0.75, stewart_platform[2][0] + 0.75]], 'stairs': [[stairs[0][0] - 0.75, stairs[0][0] + 0.75], [stairs[1][0] - 0.75, stairs[1][0] + 0.75], [stairs[2][0] - 0.75, stairs[2][0] + 0.75]]}
+        # Reset obstacles
+        for i in range(9):
+            obstacles[i][0] -= 2.0
+
+        x_coords = np.array([obstacle[0] for obstacle in obstacles])
+        x_coords += -0.5 * (np.arange(9) + 1)
+        x_coords += self.gap * (np.arange(9) + 1)
+        np.random.shuffle(x_coords)
+
+        # Update positions in the simulation and in self.obstacle_locs
+        for i, (indices, obstacle, key) in enumerate(zip(obstacle_indices, obstacles, obstacle_keys)):
+            obstacle[0] = x_coords[i]
+            np.put(self.sim.data.qpos, indices, obstacle)
+            obstacle_locs[key] = obstacle_locs.get(key, []) + [[obstacle[0] - 0.75, obstacle[0] + 0.75]]
+
+        self.obstacle_locs = obstacle_locs
         
