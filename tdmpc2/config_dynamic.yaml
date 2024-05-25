@@ -18,7 +18,7 @@ eval_episodes: 10
 eval_freq: 5000
 
 # training
-steps: 29_982_720
+steps: 61_440_000
 batch_size: 256
 reward_coef: 0.1
 value_coef: 0.1

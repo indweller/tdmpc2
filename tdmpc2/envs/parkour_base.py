@@ -153,7 +153,7 @@ class ParkourEnv(gym.Env):
         # set joint to nominal configuration
         jpn = np.array(self.model_prop[self.exp_conf['robot']]['jpos_nominal']) 
         error_norm = np.inf    
-        while error_norm > 2e-1:
+        while error_norm > 2e1:
             error_norm = 0
             for i,(jci,jpi,jvi) in enumerate(
                                                     zip(
