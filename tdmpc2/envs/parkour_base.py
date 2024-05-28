@@ -25,13 +25,12 @@ NOMINAL_HEIGHT = 0.3
 
 class ParkourEnv(gym.Env):
 
-    def __init__(self, cfg, exp_conf_path='./exp_confs/default.yaml'):
-        self.exp_conf = yaml.load(open(exp_conf_path), Loader=yaml.FullLoader)
+    def __init__(self, cfg):
+        self.exp_conf = cfg
         self.render_viewer = self.exp_conf['sim_params']['render']
-        self.cfg = cfg
-        self.policy = torch.load(cfg.policy_path)
-        self.oracle_freq = cfg['oracle_freq'] # Env freq in real time, 1 Hz
-        self.policy_freq = cfg['policy_freq']
+        self.policy = torch.load(self.exp_conf['policy_path'])
+        self.oracle_freq = self.exp_conf['oracle_freq'] # Env freq in real time, 1 Hz
+        self.policy_freq = self.exp_conf['policy_freq']
         self.sim = mujoco_sim( **self.exp_conf['sim_params'])
         # self.sim.init_renderers()
         if not isinstance(self.exp_conf['p_gain'],list):
@@ -47,10 +46,10 @@ class ParkourEnv(gym.Env):
         self.action_space = gym.spaces.Box(
 			low=np.array([-1, -1]), high=np.array([1, 1]),
 		)
-        x = self.cfg.d_ID / np.sqrt(2) - self.cfg.a_ID[0]
-        y = self.cfg.d_ID / np.sqrt(2) - self.cfg.a_ID[1]
-        self.x_lims = (self.cfg.a_ID[0] - x, self.cfg.a_ID[0] + x)
-        self.y_lims = (self.cfg.a_ID[1] - y, self.cfg.a_ID[1] + y)
+        x = self.exp_conf['d_ID'] / np.sqrt(2) - self.exp_conf['a_ID'][0]
+        y = self.exp_conf['d_ID'] / np.sqrt(2) - self.exp_conf['a_ID'][1]
+        self.x_lims = (self.exp_conf['a_ID'][0] - x, self.exp_conf['a_ID'][0] + x)
+        self.y_lims = (self.exp_conf['a_ID'][1] - y, self.exp_conf['a_ID'][1] + y)
         self.action_space = gym.spaces.Box(
 			low=np.array([-1, -1]), high=np.array([1, 1]),
 		)
@@ -58,7 +57,7 @@ class ParkourEnv(gym.Env):
         self.observation_space = gym.spaces.Box(
             low=-np.inf, high=np.inf, shape=self.get_high_level_obs(np.zeros(2)).shape, dtype=np.float64
         )
-        self.forward_reward_weight = self.cfg.forward_reward_weight
+        self.forward_reward_weight = self.exp_conf['forward_reward_weight']
         self.max_episode_steps = 50
         self.current_step = 0
 

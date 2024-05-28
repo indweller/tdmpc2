@@ -1,5 +1,4 @@
-# Write a PPO agent for the ParkourEnv environment using stable baselines3.
-
+from omegaconf import OmegaConf
 import torch.nn as nn
 import numpy as np
 from envs.parkour import ParkourEnv
@@ -11,15 +10,15 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.callbacks import EvalCallback
 import hydra
-# ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
 import os
 PROJECT_PATH = os.path.dirname(__file__)
+CONFIG_PATH = os.path.join(PROJECT_PATH, 'dtsd/confs/')
 
 class PPOParkourEnv(ParkourEnv):
-    def __init__(self, cfg, exp_conf_path):
-        super(PPOParkourEnv, self).__init__(cfg, exp_conf_path)
+    def __init__(self, cfg):
+        super(PPOParkourEnv, self).__init__(cfg)
         self.max_episode_steps = 5
     
     def step(self, action):
@@ -30,8 +29,8 @@ class PPOParkourEnv(ParkourEnv):
         return super(PPOParkourEnv, self).reset(), {}
     
 class PPOParkourDynamicEnv(ParkourDynamic):
-    def __init__(self, cfg, exp_conf_path):
-        super(PPOParkourDynamicEnv, self).__init__(cfg, exp_conf_path)
+    def __init__(self, cfg):
+        super(PPOParkourDynamicEnv, self).__init__(cfg)
     
     def step(self, action):
         obs, reward, done, info = super(PPOParkourDynamicEnv, self).step(action)
@@ -40,11 +39,11 @@ class PPOParkourDynamicEnv(ParkourDynamic):
     def reset(self, seed=0):
         return super(PPOParkourDynamicEnv, self).reset(), {}
 
-@hydra.main(version_base=None, config_name='config_dynamic', config_path=PROJECT_PATH)
+@hydra.main(version_base=None, config_name='dynamic', config_path=CONFIG_PATH)
 def train_ppo(cfg: dict):
-    cfg = parse_cfg(cfg)
+    cfg = OmegaConf.to_container(cfg)
     def make_env(cfg):
-        env = PPOParkourDynamicEnv(cfg, cfg.exp_conf_path)
+        env = PPOParkourDynamicEnv(cfg)
         return env
     # check_env(env)
     from functools import partial
@@ -73,15 +72,15 @@ def train_ppo(cfg: dict):
 
     eval_callback = EvalCallback(eval_env, best_model_save_path='sb3/low_oracle_freq', log_path='sb3/low_oracle_freq', eval_freq=eval_freq, deterministic=True)
     
-    model.learn(total_timesteps=cfg.steps, progress_bar=True, callback=eval_callback)
+    model.learn(total_timesteps=cfg["steps"], progress_bar=True, callback=eval_callback)
     
     model.save('sb3/low_oracle_freq')
 
-@hydra.main(version_base=None, config_name='config_dynamic', config_path=PROJECT_PATH)
+@hydra.main(version_base=None, config_name='dynamic', config_path=CONFIG_PATH)
 def eval_ppo(cfg: dict):
-    cfg = parse_cfg(cfg)
+    cfg = OmegaConf.to_container(cfg)
     def make_env(cfg):
-        env = PPOParkourDynamicEnv(cfg, cfg.exp_conf_path)
+        env = PPOParkourDynamicEnv(cfg)
         return env
     from functools import partial
     env_fn = partial(make_env, cfg)
@@ -90,10 +89,10 @@ def eval_ppo(cfg: dict):
     render = vec_env.render_viewer
     vec_env.sim.viewer_paused = False
     if render:
-        vec_env.sim.viewer.cam.lookat = [4.05, -1.5, 0]
-        vec_env.sim.viewer.cam.distance = 2.5
-        vec_env.sim.viewer.cam.elevation = -20
-        vec_env.sim.viewer.cam.azimuth = 135
+        vec_env.sim.viewer.cam.lookat = [4.05, 0, 0]
+        vec_env.sim.viewer.cam.distance = 6.5
+        vec_env.sim.viewer.cam.elevation = -10
+        vec_env.sim.viewer.cam.azimuth = 90
     all_returns = []
     all_episode_lengths = []
     all_final_x = []
@@ -129,13 +128,13 @@ def eval_ppo(cfg: dict):
     print(f'Mean final x: {np.mean(all_final_x):.2f} +/- {np.std(all_final_x):.2f}')
     print(f'Mean time per step: {np.mean(all_times):.2f} +/- {np.std(all_times):.2f}')
 
-@hydra.main(version_base=None, config_name='config_dynamic', config_path=PROJECT_PATH)
+@hydra.main(version_base=None, config_name='dynamic', config_path=CONFIG_PATH)
 def hyper_param_search(cfg: dict):
-    cfg = parse_cfg(cfg)
-    cfg.steps = 122_880
+    cfg = OmegaConf.to_container(cfg)
+    cfg["steps"] = 122_880
     # cfg.steps = 600
     def make_env(cfg):
-        env = PPOParkourDynamicEnv(cfg, cfg.exp_conf_path)
+        env = PPOParkourDynamicEnv(cfg)
         return env
     from functools import partial
     env_fn = partial(make_env, cfg)
@@ -173,7 +172,7 @@ def hyper_param_search(cfg: dict):
 
                 eval_callback = EvalCallback(eval_env, best_model_save_path='sb3/hp', log_path='sb3/hp', eval_freq=n_step+1, deterministic=True)
                 
-                model.learn(total_timesteps=cfg.steps, progress_bar=True, callback=eval_callback)
+                model.learn(total_timesteps=cfg["steps"], progress_bar=True, callback=eval_callback)
                 
                 model.save('sb3/hp/final')
                 print("-------------------")

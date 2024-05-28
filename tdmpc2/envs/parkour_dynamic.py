@@ -1,19 +1,54 @@
 from envs.parkour_base import ParkourEnv
 import dtsd.envs.src.actions as act
-import dtsd.envs.src.observations as obs
+from dtsd.envs.src.env_logger import logger, logger_dummy
+from dtsd.envs.src.env_frame_recorder import frame_recorder,frame_recorder_dummy
+from dtsd.envs.src.misc_funcs import *
 import numpy as np
 import time
+import datetime
 
 class ParkourDynamic(ParkourEnv):
-    def __init__(self, cfg, exp_conf_path='./exp_confs/default.yaml'):
+    def __init__(self, cfg):
         self.gap = 0.3
         self.obstacle_oh = {'rotating_disc': np.array([0, 0]), 'moving_cart': np.array([0, 1]), 'stewart_platform': np.array([1, 0]), 'stairs': np.array([1, 1])}
         self.obstacle_locs = None
         self.obstacle_keys = ['moving_cart', 'stewart_platform', 'stairs', 'moving_cart', 'stewart_platform', 'stairs', 'moving_cart', 'stewart_platform', 'stairs']
-        super().__init__(cfg, exp_conf_path)
+        
+        super().__init__(cfg)
+        
         self.max_episode_steps = 30
+        self.episode_counter = 0
+        self.curr_action = np.zeros(2)
+
+        if 'export_logger' in self.exp_conf.keys():
+            this_exp_date = datetime.datetime.now().strftime("%d%b%Y")
+            this_exp_time = datetime.datetime.now().strftime("%H:%M")
+            self.exp_conf['export_logger']['export_date_time'] = this_exp_date + '/' + this_exp_time
+            self.export_logger = logger(logger_conf=self.exp_conf['export_logger'])
+        else:
+            self.export_logger = logger_dummy(None)
+        
+        if exists_not_none('frame_recorder',self.exp_conf):
+            self.sim.init_renderers()
+            self.cam_trolly = { "pos" : np.array([4.05, 0, 0]),
+                                "azim" : 90,
+                                "elev" : -10,
+                                "dist" : 6.5,
+                                "delta_pos" : np.array([0.01,0.0,0.0]),
+                                "delta_dist" : 0.105 }
+            self.exp_conf['frame_recorder']['export_date_time'] = this_exp_date + '/' + this_exp_time
+            self.frame_recorder = frame_recorder(self.exp_conf['frame_recorder'])
+        else:
+            self.frame_recorder = frame_recorder_dummy(None)
+    
+    def reset(self):
+        self.export_logger.reset()
+        self.frame_recorder.reset()
+        self.episode_counter += 1
+        return super().reset()
     
     def step(self, action):
+        self.curr_action = action.copy()
         self.current_step += 1
         action = self.scale_actions(action)
         prev_pose = self.sim.data.qpos[:3].copy()
@@ -21,20 +56,24 @@ class ParkourDynamic(ParkourEnv):
             self.phase = phase
             low_level_obs = self.get_low_level_obs(action)
             policy_action = self.policy(low_level_obs).detach().numpy()
-            st = time.time()
+            start_time = time.time()
             for i in range(int(self.sim_freq / self.policy_freq)):
                 torques = act.pd_targets(self, policy_action)
                 torques[-1] = 0.00
                 self.sim.set_control(torques)
                 self.sim.simulate_n_steps(n_steps=1)
+                self.export_logger.update(self, self.sim.data)
                 done = self.check_done(self.sim.data.qpos[:3])
                 if done:
                     break
-            end = time.time()
+            end_time = time.time()
             if self.render_viewer:
-                time_to_sleep = max(0, 1 / self.policy_freq - (end - st))
-                time.sleep(time_to_sleep)
-                self.sim.viewer.sync()
+                self.update_rendering(start_time, end_time)            
+            if done:
+                export_name = "epi_" + str(self.episode_counter)
+                self.frame_recorder.export(export_name = export_name)
+                self.export_logger.export(export_name = export_name)
+                break
         current_pose = self.sim.data.qpos[:3].copy()
         reward = self.get_reward(prev_pose, current_pose)
         return self.get_high_level_obs(action), reward, done, {}
@@ -53,6 +92,19 @@ class ParkourDynamic(ParkourEnv):
         # return self.forward_reward_weight * np.exp(-0.15 * np.abs(current_pose[0] - 10))
         return self.forward_reward_weight * np.exp(-0.08 * np.abs(current_pose[0] - 20))
 
+    def update_rendering(self, start_time, end_time):
+        time_to_sleep = max(0, 1 / self.policy_freq - (end_time - start_time))
+        time.sleep(time_to_sleep)
+        self.sim.viewer.sync()
+        base_pos = self.get_robot_base_pos()
+        self.cam_trolly["pos"][0] = base_pos[0]
+        self.sim.update_camera( cam_name='free_camera',
+                                pos = self.cam_trolly["pos"],
+                                azim = self.cam_trolly["azim"],
+                                elev = self.cam_trolly["elev"],
+                                dist = self.cam_trolly["dist"],)	
+        self.frame_recorder.append_frame(self.sim)
+        
     def generate_task_variant(self):
         self.set_obstacles_extended()
     
