@@ -77,7 +77,7 @@ def train_ppo(cfg: dict):
     model.save('sb3/low_oracle_freq')
 
 @hydra.main(version_base=None, config_name='dynamic', config_path=CONFIG_PATH)
-def eval_ppo(cfg: dict):
+def eval_model(cfg: dict):
     cfg = OmegaConf.to_container(cfg)
     def make_env(cfg):
         env = PPOParkourDynamicEnv(cfg)
@@ -85,14 +85,19 @@ def eval_ppo(cfg: dict):
     from functools import partial
     env_fn = partial(make_env, cfg)
     vec_env = env_fn()
-    model = PPO.load('sb3/hp/50_64_32/best_model.zip')
+    algo = "PPO"
+    if algo == "PPO":
+        # model = PPO.load('sb3/hp/50_64_32/best_model.zip')
+        model = PPO.load('../../discovery/sb3/high_oracle_freq/best_model.zip')
+    else:
+        model = SAC.load('../../discovery/sb3/sac_high_oracle_freq/best_model.zip')
     render = vec_env.render_viewer
     vec_env.sim.viewer_paused = False
     if render:
-        vec_env.sim.viewer.cam.lookat = [4.05, 0, 0]
-        vec_env.sim.viewer.cam.distance = 6.5
-        vec_env.sim.viewer.cam.elevation = -10
+        vec_env.sim.viewer.cam.lookat = np.array([4.05, 0, 0])
         vec_env.sim.viewer.cam.azimuth = 90
+        vec_env.sim.viewer.cam.elevation = -10
+        vec_env.sim.viewer.cam.distance = 2.25
     all_returns = []
     all_episode_lengths = []
     all_final_x = []
@@ -101,7 +106,7 @@ def eval_ppo(cfg: dict):
         obs, _ = vec_env.reset()
         done = False
         if render:
-            vec_env.sim.viewer_paused = True
+            # vec_env.sim.viewer_paused = True
             vec_env.sim.viewer.update_hfield(0)
         returns = 0
         steps = 0
@@ -110,7 +115,7 @@ def eval_ppo(cfg: dict):
         while not done:
             if render and not vec_env.sim.viewer_paused:
                 # print(model.predict(obs))
-                action, _states = model.predict(obs)
+                action, _states = model.predict(obs, deterministic=True)
                 # action = np.random.normal(0, 0.05, 2).clip(-1, 1)
                 # action = np.random.uniform(-1, 1, 2)
                 obs, rewards, done, _, info = vec_env.step(action)
@@ -201,59 +206,8 @@ def train_sac(cfg: dict):
     
     model.save('sb3/sac_low_oracle_freq')
 
-@hydra.main(version_base=None, config_name='dynamic', config_path=CONFIG_PATH)
-def eval_sac(cfg: dict):
-    cfg = OmegaConf.to_container(cfg)
-    def make_env(cfg):
-        env = PPOParkourDynamicEnv(cfg)
-        return env
-    from functools import partial
-    env_fn = partial(make_env, cfg)
-    vec_env = env_fn()
-    model = SAC.load('sb3/sac_low_oracle_freq/best_model.zip')
-    render = vec_env.render_viewer
-    vec_env.sim.viewer_paused = False
-    if render:
-        vec_env.sim.viewer.cam.lookat = [4.05, 0, 0]
-        vec_env.sim.viewer.cam.distance = 6.5
-        vec_env.sim.viewer.cam.elevation = -10
-        vec_env.sim.viewer.cam.azimuth = 90
-    all_returns = []
-    all_episode_lengths = []
-    all_final_x = []
-    all_times = []
-    for _ in range(20):
-        obs, _ = vec_env.reset()
-        done = False
-        if render:
-            vec_env.sim.viewer_paused = True
-            vec_env.sim.viewer.update_hfield(0)
-        returns = 0
-        steps = 0
-        import time
-        st = time.time()
-        while not done:
-            if render and not vec_env.sim.viewer_paused:
-                # print(model.predict(obs))
-                action, _states = model.predict(obs)
-                # action = np.random.normal(0, 0.05, 2).clip(-1, 1)
-                # action = np.random.uniform(-1, 1, 2)
-                obs, rewards, done, _, info = vec_env.step(action)
-                returns += rewards
-                steps += 1
-        end = time.time()
-        print(f'Episode finished after {steps} steps with return {returns:.2f}. Final x = {vec_env.sim.data.qpos[0]:.2f}')
-        all_returns.append(returns)
-        all_episode_lengths.append(steps)
-        all_final_x.append(vec_env.sim.data.qpos[0])
-        all_times.append((end - st) / steps)
-    vec_env.close()
-    print(f'Mean return: {np.mean(all_returns):.2f} +/- {np.std(all_returns):.2f}')
-    print(f'Mean episode length: {np.mean(all_episode_lengths):.2f} +/- {np.std(all_episode_lengths):.2f}')
-
 if __name__ == '__main__':
     # train_ppo()
-    # eval_ppo()
+    eval_model()
     # hyper_param_search()
     # train_sac()
-    eval_sac()

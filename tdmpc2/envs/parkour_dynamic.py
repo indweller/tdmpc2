@@ -10,9 +10,13 @@ import datetime
 class ParkourDynamic(ParkourEnv):
     def __init__(self, cfg):
         self.gap = 0.3
-        self.obstacle_oh = {'rotating_disc': np.array([0, 0]), 'moving_cart': np.array([0, 1]), 'stewart_platform': np.array([1, 0]), 'stairs': np.array([1, 1])}
+        self.obstacle_oh = {'rotating_disc_platform': np.array([0, 0]), 'moving_cart_platform': np.array([0, 1]), 'stewart_platform': np.array([1, 0]), 'stairs': np.array([1, 1])}
         self.obstacle_locs = None
-        self.obstacle_keys = ['moving_cart', 'stewart_platform', 'stairs', 'moving_cart', 'stewart_platform', 'stairs', 'moving_cart', 'stewart_platform', 'stairs']
+        self.obstacle_keys = ['moving_cart_platform', 'stewart_platform', 'stairs', 'moving_cart_platform', 'stewart_platform', 'stairs', 'moving_cart_platform', 'stewart_platform', 'stairs']
+        self.obstacle_ids = {'rotating_disc_platform': ['rotating_disc_platform', 'disc'], 
+                             'moving_cart_platform': ['moving_cart_platform', 'moving_cart_platform_2', 'moving_cart_platform_3'], 
+                             'stewart_platform': ['stewart_plane', 'stewart_plane_2', 'stewart_plane_3'], 'stairs': ['stairs', 'stairs_2', 'stairs_3']}
+        self.robot_ids = ["L_hip", "L_hip2", "L_thigh", "R_hip", "R_hip2", "R_thigh"]
         
         super().__init__(cfg)
         
@@ -29,16 +33,18 @@ class ParkourDynamic(ParkourEnv):
             self.export_logger = logger_dummy(None)
         
         if exists_not_none('frame_recorder',self.exp_conf):
+            self.record_frames = True
             self.sim.init_renderers()
             self.cam_trolly = { "pos" : np.array([4.05, 0, 0]),
                                 "azim" : 90,
                                 "elev" : -10,
-                                "dist" : 6.5,
+                                "dist" : 2.25,
                                 "delta_pos" : np.array([0.01,0.0,0.0]),
                                 "delta_dist" : 0.105 }
             self.exp_conf['frame_recorder']['export_date_time'] = this_exp_date + '/' + this_exp_time
             self.frame_recorder = frame_recorder(self.exp_conf['frame_recorder'])
         else:
+            self.record_frames = False
             self.frame_recorder = frame_recorder_dummy(None)
     
     def reset(self):
@@ -78,6 +84,24 @@ class ParkourDynamic(ParkourEnv):
         reward = self.get_reward(prev_pose, current_pose)
         return self.get_high_level_obs(action), reward, done, {}
     
+    def get_current_obstacle(self):
+        x = self.get_robot_base_pos()[0]
+        current_obstacle = None
+        for i, loc in enumerate(self.obstacle_locs):
+            if loc - 0.75 <= x <= loc + 0.75:
+                current_obstacle = self.obstacle_keys[i]
+                break
+        return current_obstacle
+
+    def get_next_obstacle(self):
+        x = self.get_robot_base_pos()[0]
+        next_obstacle = None
+        for i, loc in enumerate(self.obstacle_locs):
+            if loc - 0.75 > x:
+                next_obstacle = self.obstacle_keys[i]
+                break
+        return next_obstacle
+
     def check_done(self, current_pose):
         terrain_height = self.sim.get_terrain_height_at(current_pose)
         if self.sim.data.qpos[2] < 0.35 or self.sim.data.qpos[2] - terrain_height < 0.35:
@@ -86,6 +110,13 @@ class ParkourDynamic(ParkourEnv):
             return True
         if self.current_step >= self.max_episode_steps:
             return True
+        current_obstacle = self.get_current_obstacle()
+        if current_obstacle is not None:
+            for obstacle in self.obstacle_ids[current_obstacle]:
+                for robot_part in self.robot_ids:
+                    is_contact, _ = self.sim.contact_bw_bodies(robot_part, obstacle)
+                    if is_contact:
+                        return True
         return False
 
     def get_reward(self, prev_pose, current_pose):
@@ -96,14 +127,15 @@ class ParkourDynamic(ParkourEnv):
         time_to_sleep = max(0, 1 / self.policy_freq - (end_time - start_time))
         time.sleep(time_to_sleep)
         self.sim.viewer.sync()
-        base_pos = self.get_robot_base_pos()
-        self.cam_trolly["pos"][0] = base_pos[0]
-        self.sim.update_camera( cam_name='free_camera',
-                                pos = self.cam_trolly["pos"],
-                                azim = self.cam_trolly["azim"],
-                                elev = self.cam_trolly["elev"],
-                                dist = self.cam_trolly["dist"],)	
-        self.frame_recorder.append_frame(self.sim)
+        if self.record_frames:
+            base_pos = self.get_robot_base_pos()
+            self.cam_trolly["pos"][0] = base_pos[0]
+            self.sim.update_camera( cam_name='free_camera',
+                                    pos = self.cam_trolly["pos"],
+                                    azim = self.cam_trolly["azim"],
+                                    elev = self.cam_trolly["elev"],
+                                    dist = self.cam_trolly["dist"],)	
+            self.frame_recorder.append_frame(self.sim)
         
     def generate_task_variant(self):
         self.set_obstacles_extended()
@@ -115,23 +147,21 @@ class ParkourDynamic(ParkourEnv):
         base_pos = self.get_robot_base_pos()
         x = base_pos[0]
         oh = np.array([-1, -1])
-        for i, loc in enumerate(self.obstacle_locs):
-            if loc - 0.75 <= x <= loc + 0.75:
-                oh = self.obstacle_oh[self.obstacle_keys[i]]
-                break
+        current_obstacle = self.get_current_obstacle()
+        if current_obstacle is not None:
+            oh = self.obstacle_oh[current_obstacle]
         next_oh = np.array([-1, -1])
-        for i, loc in enumerate(self.obstacle_locs):
-            if loc - 0.75 > x:
-                next_oh = self.obstacle_oh[self.obstacle_keys[i]]
-                break
+        next_obstacle = self.get_next_obstacle()
+        if next_obstacle is not None:
+            next_oh = self.obstacle_oh[next_obstacle]
         return np.concatenate((high_level_obs, oh, next_oh))
     
     def set_obstacles(self):
         obstacle_indices = [[24, 25, 26], [32, 33, 34], [43, 44, 45], [54, 55, 56]]
         x_coords = np.array([np.take(self.sim.data.qpos, indices)[0] for indices in obstacle_indices])
-        obstacle_keys = ['rotating_disc', 'moving_cart', 'stewart_platform', 'stairs']
-        obstacle_indices = {'rotating_disc': [24, 25, 26],
-                            'moving_cart': [32, 33, 34],
+        obstacle_keys = ['rotating_disc_platform', 'moving_cart_platform', 'stewart_platform', 'stairs']
+        obstacle_indices = {'rotating_disc_platform': [24, 25, 26],
+                            'moving_cart_platform': [32, 33, 34],
                             'stewart_platform': [43, 44, 45],
                             'stairs': [54, 55, 56]}
 
@@ -151,10 +181,10 @@ class ParkourDynamic(ParkourEnv):
     def set_obstacles_new(self):
         obstacle_indices = [[24, 25, 26], [32, 33, 34], [43, 44, 45], [54, 55, 56]]
         x_coords = np.array([np.take(self.sim.data.qpos, indices)[0] for indices in obstacle_indices])
-        obstacle_indices = {'moving_cart': [32, 33, 34],
+        obstacle_indices = {'moving_cart_platform': [32, 33, 34],
                             'stewart_platform': [43, 44, 45],
                             'stairs': [54, 55, 56]}
-        obstacle_keys = ['moving_cart', 'stewart_platform', 'stairs']
+        obstacle_keys = ['moving_cart_platform', 'stewart_platform', 'stairs']
 
         x_coords = x_coords[:3]
         x_coords += -0.5 * (np.arange(3) + 1)
@@ -176,10 +206,10 @@ class ParkourDynamic(ParkourEnv):
                             [61, 62, 63], [72, 73, 74], [83, 84, 85], 
                             [90, 91, 92], [101, 102, 103], [112, 113, 114]]
         x_coords = np.array([np.take(self.sim.data.qpos, indices)[0] for indices in obstacle_indices])
-        obstacle_indices = {'moving_cart': [[32, 33, 34], [61, 62, 63], [90, 91, 92]],
+        obstacle_indices = {'moving_cart_platform': [[32, 33, 34], [61, 62, 63], [90, 91, 92]],
                             'stewart_platform': [[43, 44, 45], [72, 73, 74], [101, 102, 103]],
                             'stairs': [[54, 55, 56], [83, 84, 85], [112, 113, 114]]}
-        obstacle_keys = ['moving_cart', 'stewart_platform', 'stairs']*3
+        obstacle_keys = ['moving_cart_platform', 'stewart_platform', 'stairs']*3
 
         x_coords -= 2.0
         x_coords += -0.5 * (np.arange(9) + 1)
