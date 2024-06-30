@@ -24,9 +24,9 @@ class ParkourDynamic(ParkourEnv):
         self.episode_counter = 0
         self.curr_action = np.zeros(2)
 
+        this_exp_date = datetime.datetime.now().strftime("%d%b%Y")
+        this_exp_time = datetime.datetime.now().strftime("%H:%M")
         if 'export_logger' in self.exp_conf.keys():
-            this_exp_date = datetime.datetime.now().strftime("%d%b%Y")
-            this_exp_time = datetime.datetime.now().strftime("%H:%M")
             self.exp_conf['export_logger']['export_date_time'] = this_exp_date + '/' + this_exp_time
             self.export_logger = logger(logger_conf=self.exp_conf['export_logger'])
         else:
@@ -225,3 +225,8 @@ class ParkourDynamic(ParkourEnv):
         
         self.obstacle_locs = x_coords
         self.obstacle_keys = obstacle_keys
+    
+    def close(self):
+        if self.render_viewer:
+            self.sim.close()
+        return super().close()

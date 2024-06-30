@@ -71,9 +71,10 @@ class ParkourEnv(gym.Env):
             )
 
     def scale_actions(self, action):
-        action[0] = (action[0] + 1) * (self.x_lims[1] - self.x_lims[0]) / 2 + self.x_lims[0]
-        action[1] = (action[1] + 1) * (self.y_lims[1] - self.y_lims[0]) / 2 + self.y_lims[0]           
-        return action
+        copied_action = action.copy()
+        copied_action[0] = (action[0] + 1) * (self.x_lims[1] - self.x_lims[0]) / 2 + self.x_lims[0]
+        copied_action[1] = (action[1] + 1) * (self.y_lims[1] - self.y_lims[0]) / 2 + self.y_lims[0]           
+        return copied_action
 
     def step(self, action):
         self.current_step += 1
