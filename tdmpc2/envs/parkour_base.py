@@ -46,8 +46,8 @@ class ParkourEnv(gym.Env):
         self.action_space = gym.spaces.Box(
 			low=np.array([-1, -1]), high=np.array([1, 1]),
 		)
-        x = self.exp_conf['d_ID'] / np.sqrt(2) - self.exp_conf['a_ID'][0]
-        y = self.exp_conf['d_ID'] / np.sqrt(2) - self.exp_conf['a_ID'][1]
+        x = self.exp_conf['d_ID'] / np.sqrt(2)
+        y = self.exp_conf['d_ID'] / np.sqrt(2)
         self.x_lims = (self.exp_conf['a_ID'][0] - x, self.exp_conf['a_ID'][0] + x)
         self.y_lims = (self.exp_conf['a_ID'][1] - y, self.exp_conf['a_ID'][1] + y)
         self.action_space = gym.spaces.Box(

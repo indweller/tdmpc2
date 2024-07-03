@@ -31,7 +31,8 @@ class PPOParkourEnv(ParkourEnv):
 class PPOParkourDynamicEnv(ParkourDynamic):
     def __init__(self, cfg):
         super(PPOParkourDynamicEnv, self).__init__(cfg)
-    
+        self.max_episode_steps = 300
+        
     def step(self, action):
         obs, reward, done, info = super(PPOParkourDynamicEnv, self).step(action)
         return obs, reward, done, False, info
@@ -80,9 +81,10 @@ def eval_model(cfg, algo="PPO", episodes=50):
     if algo == "PPO":
         print("Loading PPO model")
         # model = PPO.load('sb3/hp/50_64_32/best_model.zip')
-        model = PPO.load('../../discovery/sb3/high_oracle_freq/best_model.zip')
+        model = PPO.load('../../discovery/sb3/collision_checks/ppo_high_oracle_freq/best_model.zip')
     else:
-        model = SAC.load('../../discovery/sb3/sac_high_oracle_freq/best_model.zip')
+        print("Loading SAC model")
+        model = SAC.load('../../discovery/sb3/collision_checks/sac_high_oracle_freq/best_model.zip')
     render = vec_env.render_viewer
     vec_env.sim.viewer_paused = False
     if render:
