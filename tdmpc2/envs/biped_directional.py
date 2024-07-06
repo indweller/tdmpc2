@@ -17,6 +17,8 @@ class BipedDirectional(ParkourEnv):
             self.get_reward = self.pos_y_reward
         elif cfg["high_level_reward"] == "neg_x":
             self.get_reward = self.neg_x_reward
+        elif cfg["high_level_reward"] == "pos_yaw":
+            self.get_reward = self.pos_yaw_reward
 
         this_exp_date = datetime.datetime.now().strftime("%d%b%Y")
         this_exp_time = datetime.datetime.now().strftime("%H:%M")
@@ -91,6 +93,9 @@ class BipedDirectional(ParkourEnv):
     
     def neg_x_reward(self, prev_pose, current_pose):
         return self.forward_reward_weight * np.exp(-0.08 * np.abs(current_pose[0] + 20))
+    
+    def pos_yaw_reward(self, prev_pose, current_pose):
+        return self.forward_reward_weight * self.sim.data.qvel[5]
 
     def get_high_level_obs(self, mode_latent):
         low_level_obs = self.get_low_level_obs(mode_latent)
