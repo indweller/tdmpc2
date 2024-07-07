@@ -3,6 +3,7 @@ import numpy as np
 from envs.parkour import ParkourEnv
 from envs.parkour_dynamic import ParkourDynamic
 from envs.biped_directional import BipedDirectional
+from envs.parkour_dynamic_end2end import ParkourDynamicEnd2End
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_util import make_vec_env
@@ -52,8 +53,19 @@ class PPOBipedDirectionalEnv(BipedDirectional):
     def reset(self, seed=0):
         return super(PPOBipedDirectionalEnv, self).reset(), {}
 
+class PPOParkourDynamicEnd2EndEnv(ParkourDynamicEnd2End):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+    
+    def step(self, action):
+        obs, reward, done, info = super().step(action)
+        return obs, reward, done, False, info
+    
+    def reset(self, seed=0):
+        return super().reset(), {}
+    
 def make_env(cfg):
-    env = PPOBipedDirectionalEnv(cfg)
+    env = PPOParkourDynamicEnd2EndEnv(cfg)
     return env
 
 def train_ppo(cfg):
